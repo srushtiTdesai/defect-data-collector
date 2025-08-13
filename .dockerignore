@@ -1,0 +1,10 @@
+.git
+defect_logs
+**/__pycache__
+**/*.pyc
+*.tar
+*.tar.gz
+*.zip
+build
+install
+log

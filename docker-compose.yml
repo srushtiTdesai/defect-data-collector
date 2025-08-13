@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  defect-collector:
+    build: .
+    image: defect-data-collector:latest
+    network_mode: host
+    volumes:
+      - ./defect_logs:/root/defect_logs
+      - ./my_collector.yaml:/root/collector.yaml:ro
+    command: >
+      bash -lc "source /opt/ros/$ROS_DISTRO/setup.bash;
+                source /root/ros2_ws/install/setup.bash;
+                ros2 run defect_data_collector collector --ros-args --params-file /root/collector.yaml"

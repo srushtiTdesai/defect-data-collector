@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    topic: "/defect_gen/defect_pose"
+    output_dir: "defect_logs"
+    file_basename: "defect_pose_log"
+    format: "csv"

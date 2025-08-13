@@ -1,0 +1,9 @@
+defect_logs/
+*.tar
+*.tar.gz
+*.zip
+__pycache__/
+*.pyc
+build/
+install/
+log/

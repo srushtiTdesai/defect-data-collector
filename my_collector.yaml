@@ -1,0 +1,12 @@
+# Node-agnostic parameters (inside Docker, output_dir is mounted volume)
+/**:
+  ros__parameters:
+    topic: "/defect_gen/defect_pose"
+    frame_id: "world"
+    output_dir: "/root/defect_logs"
+    file_basename: "defect_pose_log"
+    format: "parquet"
+    batch_size: 200
+    max_flush_seconds: 2.0
+    reliability: "best_effort"
+    depth: 10
