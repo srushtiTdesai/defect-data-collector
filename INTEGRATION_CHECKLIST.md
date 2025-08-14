@@ -1,20 +1,19 @@
-# ROS 2 Humble Integration & User Guide (Multi‑Machine, Pub/Sub + Services)
+# ROS 2 Humble Integration & User Guide (Multi-Machine, Pub/Sub + Services)
 
 > **Target distro:** ROS 2 Humble (Ubuntu 22.04)  
-> **Network:** Multi‑machine over LAN using DDS/RTPS  
+> **Network:** Multi-machine over LAN using DDS/RTPS  
 > **Domain:** `ROS_DOMAIN_ID=7`  
->  
-> This guide helps you prepare your ROS 2 environment for integration with the rest of the team.  
-> It explains not only **what** to do, but also **why** each step is important, so you understand how the pieces fit together.
+>
+> This guide helps you prepare your ROS 2 environment for team integration. It explains not only **what** to do, but also **why** each step matters.
 
 ---
 
-## 0) Quick Pass / TL;DR — *Basic environment and network sanity check*
+## 0) Quick Pass / TL;DR — *Basic environment & network sanity check*
 
-We start by verifying that you can run ROS 2 locally, see other machines on the network, and use a simple demo application (`turtlesim`).
+We verify you can run ROS 2 locally, see other machines on the LAN, and use a simple demo app (`turtlesim`).
 
 ```bash
-# Source ROS 2 so the CLI tools work in this shell
+# Source ROS 2 so the CLI works in this shell
 source /opt/ros/humble/setup.bash
 
 # Set our shared ROS 2 domain so nodes can talk across machines
@@ -23,70 +22,62 @@ export ROS_DOMAIN_ID=7
 # Allow DDS discovery over the network, not just localhost
 export ROS_LOCALHOST_ONLY=0
 
-# Check that you have the correct ROS 2 version and that your environment is healthy
+# Verify version and general health
 ros2 --version
 ros2 doctor --report
 
-# Install turtlesim for a lightweight test node
+# Install a lightweight test node
 sudo apt install -y ros-humble-turtlesim ros-humble-demo-nodes-cpp
 
-# Run turtlesim in one terminal (the 'server')
+# Run turtlesim (server)
 ros2 run turtlesim turtlesim_node
 
-# Run teleop in another terminal (the 'client')
+# Run teleop (client)
 ros2 run turtlesim turtle_teleop_key
 
-# Echo the turtle's position in a third terminal
+# Echo the turtle's pose (telemetry)
 ros2 topic echo /turtle1/pose
 
-# Test network discovery between two machines
-# On Machine A
+# Network discovery check between two machines
+# On Machine A:
 ros2 multicast receive
-# On Machine B
+# On Machine B:
 ros2 multicast send
-# You should see messages appear on Machine A
 ```
 
 ---
 
-## 1) System Setup — *Installing ROS 2 Humble*
+## 1) System Setup — *Install & configure ROS 2 Humble consistently*
 
-ROS 2 must be installed and configured consistently across all team members. This ensures that the nodes will communicate without version or configuration mismatches.
+Consistency across the team avoids version/QoS/RMW mismatches.
 
 ```bash
-# Update your package list
 sudo apt update
-
-# Install ROS 2 Humble Desktop (includes common tools like RViz)
 sudo apt install -y ros-humble-desktop python3-colcon-common-extensions     python3-rosdep python3-vcstool
-
-# Initialize rosdep for dependency management
 sudo rosdep init || true
 rosdep update
 ```
 
-Add this to your `~/.bashrc` so the environment variables are set automatically:
+Add this to `~/.bashrc` so shells auto-configure:
 
 ```bash
 # ROS 2 Humble
 source /opt/ros/humble/setup.bash
 
-# Shared team domain
+# Shared team domain & LAN comms
 export ROS_DOMAIN_ID=7
-
-# Allow cross-machine communication
 export ROS_LOCALHOST_ONLY=0
 
-# Optional: lock RMW to ensure consistent DDS implementation
+# Optional: lock the DDS impl for consistency (default is Fast DDS)
 # export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
-# Source your workspace overlay if it exists
+# Source your workspace overlay if present
 if [ -f ~/ros2_ws/install/setup.bash ]; then
   source ~/ros2_ws/install/setup.bash
 fi
 ```
 
-Reload your shell and confirm settings:
+Reload & verify:
 
 ```bash
 source ~/.bashrc
@@ -97,9 +88,9 @@ ros2 doctor --report
 
 ---
 
-## 2) Workspace & Build — *Creating a clean build space*
+## 2) Workspace & Build — *Clean, consistent layout*
 
-We use a common workspace layout so it's easy for others to build and test your code.
+A standard workspace makes your code easier to build and test.
 
 ```bash
 mkdir -p ~/ros2_ws/src
@@ -110,9 +101,9 @@ source install/setup.bash
 
 ---
 
-## 3) Local Verification (TurtleSim) — *Testing basic Pub/Sub and services locally*
+## 3) Local Verification (TurtleSim) — *Test Pub/Sub and services on one machine*
 
-`Turtlesim` is a simple 2D simulator that lets us quickly verify topics, services, and message passing.
+`turtlesim` quickly validates that topics and services work as expected.
 
 ```bash
 sudo apt install -y ros-humble-turtlesim
@@ -120,95 +111,132 @@ sudo apt install -y ros-humble-turtlesim
 # Terminal A: Start turtlesim
 ros2 run turtlesim turtlesim_node
 
-# Terminal B: See the available topics and echo the turtle pose
+# Terminal B: Explore and observe
 ros2 topic list
 ros2 topic echo /turtle1/pose
 
-# Control the turtle interactively
+# Terminal B: Drive the turtle
 ros2 run turtlesim turtle_teleop_key
 
-# Publish a one-off velocity message to move the turtle forward
+# Publish a one-off velocity command
 ros2 topic pub -1 /turtle1/cmd_vel geometry_msgs/Twist "{linear: {x: 1.0}, angular: {z: 0.0}}"
 
-# Call a service to change pen color
+# Call services (pen color)
 ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 255, g: 0, b: 0, width: 3, off: 0}"
 
-# Spawn another turtle via service
+# Spawn a second turtle
 ros2 service call /spawn turtlesim/srv/Spawn "{x: 5.5, y: 5.5, theta: 0.0, name: 'turtle2'}"
 ```
 
 ---
 
-## 4) Standard Message Set — *Consistent data formats across the team*
+## 4) Standard Message Set — *Use common types to simplify integration*
 
-To keep integration simple, we stick to standard ROS 2 message types unless absolutely necessary.
+Prefer standard ROS messages unless there’s a strong reason not to.
 
-- **Joints:** `sensor_msgs/msg/JointState`
-- **Multiple poses:** `geometry_msgs/msg/PoseArray`
-- **Single pose:** `geometry_msgs/msg/Pose` or `geometry_msgs/msg/PoseStamped`
-- **Images:** `sensor_msgs/msg/Image` (consider compression with `image_transport`)
-- **3D point clouds:** `sensor_msgs/msg/PointCloud2`
-- **Text/flags:** `std_msgs/msg/String`, `std_msgs/msg/Bool`, `std_msgs/msg/Int32`
-- **Transforms:** `tf2_msgs/msg/TFMessage` via `tf2_ros`
+- **Joints:** `sensor_msgs/msg/JointState`  
+- **Multiple poses:** `geometry_msgs/msg/PoseArray`  
+- **Single pose:** `geometry_msgs/msg/Pose` or `geometry_msgs/msg/PoseStamped`  
+- **Images:** `sensor_msgs/msg/Image` (consider `image_transport` compression)  
+- **3D:** `sensor_msgs/msg/PointCloud2`  
+- **Simple flags/text:** `std_msgs/msg/String`, `std_msgs/msg/Bool`, `std_msgs/msg/Int32`  
+- **Transforms:** `tf2_msgs/msg/TFMessage` via `tf2_ros`  
 
-If you think you need a custom message, first see if you can combine standard messages.
+*If you think you need a custom message, first try composing standard types.*
 
 ---
 
-## 5) Topic & Service Registry — *Documenting your interface*
+## 5) Topic & Service Registry — *Document your node’s interface*
 
-Each contributor must fill this table for their node so others know what to expect.
+Each contributor fills this table for their node.
 
 ### Topics
 
 | Name | Direction | Type | QoS | Rate (Hz) | Notes |
-|------|-----------|------|-----|-----------|-------|
+|---|---|---|---|---|---|
 | `/robot/joint_states` | Pub | `sensor_msgs/JointState` | reliable/volatile/keep_last/50 | 50 | Robot state |
 | `/poses/targets` | Pub | `geometry_msgs/PoseArray` | reliable/volatile/keep_last/10 | 5 | Planner output |
 | `/camera/color/image_raw` | Pub | `sensor_msgs/Image` | best_effort/volatile/keep_last/5 | 15–30 | RGB camera |
 | `/cloud/points` | Pub | `sensor_msgs/PointCloud2` | best_effort/volatile/keep_last/5 | 5–15 | 3D data |
 | `/planner/goal` | Sub | `geometry_msgs/PoseStamped` | reliable/volatile/keep_last/10 | n/a | Planner input |
-| `/status` | Pub | `std_msgs/String` | reliable/transient_local/keep_last/1 | on change | Status updates |
+| `/status` | Pub | `std_msgs/String` | reliable/transient_local/keep_last/1 | on change | Latched status |
 
 ### Services
 
 | Name | Role | Type | Notes |
-|------|------|------|-------|
+|---|---|---|---|
 | `/perception/reset` | Server | `std_srvs/srv/Trigger` | Reset perception |
 | `/planner/plan_path` | Server | `nav_msgs/srv/GetPlan` | Path planning |
 | `/system/save_bag` | Client | `rosbag2_interfaces/srv/RecordTopics` | Trigger recording |
 
 ---
 
-## 6) rosbag2 Basics — *Recording and replaying data*
+## 6) rosbag2 (MCAP) — *Turtlesim record & replay that retraces your path*
 
-We use MCAP storage for better performance and compatibility.
+We demonstrate an end-to-end rosbag2 workflow with Turtlesim.  
+**Key idea:** record `/turtle1/cmd_vel` (the **input**) while you teleop; replaying those commands drives a fresh turtlesim to **retrace** the same path. Recording `/turtle1/pose` alone won’t move anything—it’s just telemetry.
 
+### 6.1 Start & drive
 ```bash
-# Record selected topics
-ros2 bag record --storage mcap -o integration_smoke   /robot/joint_states /poses/targets /planner/goal   /camera/color/image_raw /cloud/points
+# Terminal A — run the simulator
+ros2 run turtlesim turtlesim_node
 
-# Check bag contents
-ros2 bag info integration_smoke
-
-# Replay bag
-ros2 bag play integration_smoke
+# Terminal B — drive the turtle with arrow keys
+ros2 run turtlesim turtle_teleop_key
 ```
+
+### 6.2 Record the inputs (and pose for reference)
+```bash
+# Terminal C — record velocity commands + pose using MCAP storage
+ros2 bag record --storage mcap -o turtle_run   /turtle1/cmd_vel /turtle1/pose
+# Drive 10–20 seconds, then Ctrl-C to stop recording.
+```
+
+### 6.3 Inspect the bag
+```bash
+ros2 bag info turtle_run
+```
+
+### 6.4 Replay into a fresh turtlesim
+```bash
+# Stop the current turtlesim (Ctrl-C in Terminal A) to start clean.
+
+# Terminal A — start a new simulator instance
+ros2 run turtlesim turtlesim_node
+
+# Terminal C — replay (publishes cmd_vel and pose)
+ros2 bag play turtle_run
+# The turtle should retrace your path.
+```
+
+**Tips**
+- Remap if your topic names differ:
+  ```bash
+  ros2 bag play turtle_run --remap /turtle1/cmd_vel:=/my_turtle/cmd_vel
+  ```
+- Record only the control input to shrink bags:
+  ```bash
+  ros2 bag record --storage mcap -o turtle_run /turtle1/cmd_vel
+  ```
+- Change playback speed:
+  ```bash
+  ros2 bag play turtle_run --rate 0.5  # half speed
+  ```
 
 ---
 
-## 7) Cross‑Machine Networking — *Verifying discovery and communication*
+## 7) Cross-Machine Networking — *Discovery & communication checks*
 
-ROS 2 uses DDS, which relies on multicast for discovery.
+ROS 2 uses DDS multicast for discovery. Align configs and open the right paths through your LAN/firewall.
 
-**Checklist:**
+**Checklist**
 - Same ROS 2 distro (Humble)
-- Same `ROS_DOMAIN_ID`
+- `ROS_DOMAIN_ID=7`
 - `ROS_LOCALHOST_ONLY=0`
-- Firewall allows UDP multicast (default Fast DDS uses 7400–7600/udp)
+- Multicast allowed on LAN/VLAN; open typical Fast DDS UDP ranges (e.g., 7400–7600/udp per policy)
 - Clocks synced (ntp/chrony)
 
-**Test discovery:**
+**Discovery**
 ```bash
 # Machine A
 ros2 multicast receive
@@ -216,7 +244,7 @@ ros2 multicast receive
 ros2 multicast send
 ```
 
-**Test Pub/Sub:**
+**Pub/Sub**
 ```bash
 # Machine A
 ros2 run demo_nodes_cpp talker
@@ -224,7 +252,7 @@ ros2 run demo_nodes_cpp talker
 ros2 run demo_nodes_cpp listener
 ```
 
-**Test services:**
+**Services**
 ```bash
 # Run turtlesim_node on Machine A
 # From Machine B:
@@ -234,16 +262,34 @@ ros2 service call /spawn turtlesim/srv/Spawn "{x: 8.0, y: 8.0, theta: 0.0, name:
 
 ---
 
-## 8) Pre‑Integration Self‑Check
+## 8) Pre-Integration Self-Check
 
-- Humble installed and working (`ros2 --version`)
-- Domain ID set to 7
-- Local TurtleSim works
-- Cross‑machine multicast works
-- Cross‑machine talker/listener works
-- Can record/replay MCAP bag
-- Node interfaces documented
+- Humble installed & healthy (`ros2 --version`, `ros2 doctor --report`)  
+- `ROS_DOMAIN_ID=7`, `ROS_LOCALHOST_ONLY=0` set  
+- Local Turtlesim: topic echo, teleop, service call all pass  
+- Cross-machine `ros2 multicast` send/receive pass  
+- Cross-machine talker/listener pass  
+- **Turtlesim rosbag2 replay retraces path**  
+- You can record/replay MCAP for your node’s topics  
+- Your node’s README documents topics, services, QoS, params, launch
 
 ---
 
-This file now acts as both **a setup checklist** and **a mini user guide** explaining why each step is needed.
+## 9) Appendix — QoS quick guidance & handy commands
+
+**QoS defaults to start**
+- Commands / joint states / planner I/O: `reliable`, `volatile`, `keep_last`, depth 10–50  
+- High-rate sensors (images/pointclouds): `best_effort`, `volatile`, `keep_last`, depth 5–10  
+- Status/config/static info: consider `transient_local` (latched-like to late joiners)
+
+**Inspect QoS & types**
+```bash
+ros2 topic info /camera/color/image_raw --verbose
+ros2 interface show sensor_msgs/msg/JointState
+```
+
+**Common pitfalls**
+- Nothing shows up → check `ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY=0`, VPNs, firewalls, multicast.  
+- Topic visible but no data → QoS mismatch; align reliability/durability/depth.  
+- Only localhost works → multicast blocked on LAN/VLAN; coordinate with IT.  
+- WSL2 quirks → NAT can break multicast; validate Ubuntu↔Ubuntu first.
